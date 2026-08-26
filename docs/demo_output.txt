@@ -1,0 +1,9 @@
+issued set '2026-01-issue': 8 sheets: ['A-100', 'S-200', 'M-300', 'A-101', 'S-201', 'M-301', 'A-102', 'S-202']
+
+check 1: release refused: sheet A-100 (Wall Section): drawing content changed but title block still reads REV 0, no new revision entry; transmittal lists sheets not in the sheet index: ['S-202']
+
+fixing sheet A-100: bumping its revision to match its real content change...
+check 2: release refused: transmittal lists sheets not in the sheet index: ['S-202']
+
+fixing the sheet index to include S-202...
+check 3: release allowed: every changed sheet carries a new revision entry, transmittal matches the sheet index

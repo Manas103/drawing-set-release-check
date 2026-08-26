@@ -1,0 +1,26 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.10, pytest-8.3.4, pluggy-1.6.0 -- C:\Users\Manas\Downloads\Total Job Application process flow\projects\drawing-set-release-check\venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\Manas\Downloads\Total Job Application process flow
+configfile: pytest.ini
+collecting ... collected 17 items
+
+tests\test_db.py::test_issued_set_persists_and_reloads_through_sqlite PASSED [  5%]
+tests\test_db.py::test_transmittal_and_index_persist_through_sqlite_and_drive_the_release_check PASSED [ 11%]
+tests\test_pdf_roundtrip.py::test_title_block_fields_round_trip_exactly PASSED [ 17%]
+tests\test_pdf_roundtrip.py::test_same_content_seed_renders_identical_content_hash PASSED [ 23%]
+tests\test_pdf_roundtrip.py::test_different_content_seed_renders_different_content_hash PASSED [ 29%]
+tests\test_pdf_roundtrip.py::test_revision_number_change_alone_does_not_change_content_hash PASSED [ 35%]
+tests\test_pdf_roundtrip.py::test_a_line_crossing_the_title_block_boundary_is_not_clipped PASSED [ 41%]
+tests\test_pdf_roundtrip.py::test_missing_title_block_field_raises PASSED [ 47%]
+tests\test_revision_check.py::test_45_of_45_seeded_release_defects_caught PASSED [ 52%]
+tests\test_revision_check.py::test_0_false_holds_across_40_clean_sets PASSED [ 58%]
+tests\test_revision_check.py::test_sheets_new_to_the_current_set_are_not_flagged PASSED [ 64%]
+tests\test_scale.py::test_over_a_600_sheet_synthetic_set_compared_sheet_by_sheet PASSED [ 70%]
+tests\test_transmittal_check.py::test_matching_transmittal_and_index_disagree_on_nothing PASSED [ 76%]
+tests\test_transmittal_check.py::test_transmittal_claims_a_sheet_the_index_does_not_have PASSED [ 82%]
+tests\test_transmittal_check.py::test_index_lists_a_sheet_the_transmittal_omits PASSED [ 88%]
+tests\test_transmittal_check.py::test_release_refused_when_transmittal_disagrees_with_index_even_with_no_revision_defects PASSED [ 94%]
+tests\test_transmittal_check.py::test_release_allowed_when_everything_agrees_and_nothing_changed PASSED [100%]
+
+============================= 17 passed in 11.10s =============================

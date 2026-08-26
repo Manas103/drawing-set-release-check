@@ -1,0 +1,3 @@
+seeded release defects: 45, caught: 45, exact set match: True
+false holds across 40 clean sets: 0
+620-sheet set: 620 sheets rendered+parsed twice, 20 defects caught, 4.57s

@@ -5,94 +5,117 @@ revision, sheet by sheet, against real one-page PDF sheets rendered by
 reportlab and read back by pdfplumber, not a metadata side-channel, flags
 every sheet whose drawing content changed with no matching title-block
 revision entry, and refuses to release a set whose transmittal disagrees
-with its own sheet index. Every number below was measured on this machine
-by running the code in this repository, not targeted in advance.
+with its own sheet index. Extended (Nov. 2026) with a detector-plus-
+document-model pipeline that reads feature control frames (FCFs) off a
+sheet image into structured tolerance records, gated by an ASME
+Y14.5-shaped grammar and a calibrated review band, feeding the same
+decision ledger the release check already enforces. Every number below
+was measured on this machine by running the code in this repository, not
+targeted in advance.
 
 ## Why this exists
 
-A drawing set is only as trustworthy as its revision history. The specific
-failure this project is built to catch is the one that actually costs
-money in the field: a sheet gets redlined and reissued, the drawing content
-changes, and the title block's revision block is never touched, so nobody
-downstream can tell the sheet in their hand is stale. The second failure is
-almost as common: the transmittal that says what was sent does not match
-the set's own index of what it contains.
+A drawing set is only as trustworthy as its revision history. The
+original project catches the specific failure that costs money in the
+field: a sheet gets redlined and reissued, the drawing content changes,
+and the title block's revision block is never touched. The extension
+catches the next failure in the same family: a feature control frame
+(a GD&T tolerance callout) gets transcribed wrong going from a drawing
+into a structured record, and nobody downstream can tell. Both failures
+are instances of the same idea: content changed, and the paper trail that
+should have caught it didn't.
 
 ## What this is and is not
 
-- **Real PDFs, not a metadata file pretending to be one.** Every sheet is
-  rendered by `reportlab` as an actual one-page PDF with a real title block
-  and real vector line geometry, and every fact this project checks (sheet
-  number, title, discipline, revision, revision date, content hash) is read
-  back out of the rendered PDF bytes by `pdfplumber`. Nothing is compared
-  against the parameters used to generate the sheet.
-- **Content is a hash of real vector geometry, not a page-level hash.** A
-  page-level hash would treat a revision-number-only edit as a content
-  change, because the title block text is also part of the page. The
-  title block and drawing area are two physically separate regions of the
-  page, cropped and read independently, which is what makes "content
-  changed, revision did not" a fact this project can actually observe
-  rather than assume.
-- **The drawing "content" is 10 synthetic line segments per sheet, not a
-  real drawing.** They stand in for real drawing geometry well enough to
-  prove the hash-based change detection works; no claim on this page
-  implies the rendered sheets look like real construction documents.
-- **The revision-entry check only covers sheets present in both the
-  previous issue and the current set.** A brand-new sheet or a dropped
-  sheet is out of scope for this check by design (see Limitations).
-- **`pdfplumber.crop()` selects, it does not clip.** A drawing element
-  that straddles the title-block boundary is returned with its full,
-  un-clipped coordinates by the region it overlaps; the generator keeps
-  every line at least 10pt clear of the boundary because of this (see
-  Findings).
+- **Real PDFs and real images, not metadata pretending to be either.**
+  Every sheet is rendered by `reportlab` as an actual one-page PDF with a
+  real title block and real vector line geometry (original project); the
+  FCF extension renders sheet images directly with Pillow and draws real
+  compartmented FCF boxes, not placeholder text.
+- **The drawing "content" is synthetic line segments, not a real
+  drawing**, in both the original project and the extension; no claim on
+  this page implies the rendered sheets look like real construction
+  documents.
+- **The FCF grammar is ASME Y14.5-shaped, not ASME Y14.5.** It enforces a
+  small, genuine subset of the real standard's structure (a type code, a
+  tolerance value, an optional diameter modifier, 0-3 datum references,
+  and two real cross-field rules: flatness never carries a datum; only
+  position and concentricity carry the diameter modifier), not material
+  condition modifiers, composite frames, or projected tolerance zones.
+- **Field-level exact match, not token accuracy.** A prediction counts as
+  correct only if its type, value, datum set and diameter modifier all
+  match; a tolerance with the right value and the wrong datum is wrong,
+  by design (see Findings).
+- **The FCF dataset is entirely synthetic**, generated by this
+  repository's own `fcf_extraction/fcf_image.py`, not real engineering
+  drawings; no claim implies real-world transcription accuracy.
+- **EasyOCR is a real, pretrained OCR engine, not a stub**; Donut
+  (`naver-clova-ix/donut-base`) is a real, pretrained document-understanding
+  model, fine-tuned on this repository's own synthetic crops for the
+  primary model and used unmodified, prompted with its own pretraining
+  task token, for the zero-shot baseline.
+- **Trained GPU-side in WSL2** (RTX 4070 SUPER, CUDA 12.4) for the YOLO
+  detector and the Donut fine-tune; the repo of record is this Windows
+  folder, per the pipeline's own convention.
 - **Machine and toolchain.** 8 physical / 16 logical cores, Windows 11
-  Home, Python 3.12.10, reportlab 5.0.1, pdfplumber 0.11.10, pypdf 6.16.2,
-  SQLite (stdlib `sqlite3`).
+  Home (original project) + WSL2 Ubuntu 22.04 (extension), Python 3.12.10
+  (Windows) / 3.10.12 (WSL2), reportlab 5.0.1, pdfplumber 0.11.10, pypdf
+  6.16.2, SQLite (stdlib `sqlite3`), PyTorch 2.6.0+cu124, transformers
+  5.20.2, ultralytics 8.4.215, EasyOCR, FastAPI.
 
 ## Architecture
 
 ```
-drawing_check/
-  sheet_pdf.py       renders a real one-page PDF sheet, parses it back: title block fields + a content hash
-                      of the drawing area's real vector geometry, independent of the title block
-  release_check.py    check_revision_entries (changed content, unchanged revision -> defect, named)
-                       check_transmittal_against_index (either-direction disagreement refuses release)
-  generator.py         synthetic set builder: baseline sheets, seeded-defect revisions, properly-revised
-                        revisions, all rendered and parsed as real PDFs, never constructed directly
-  db.py                 SQLite persistence for an issued set, a transmittal, and a sheet index
+drawing_check/              original project, untouched: sheet_pdf.py, generator.py, release_check.py, db.py
+fcf_extraction/
+  fcf_image.py                 synthetic sheet-image generator: background line work plus 1-3 compartmented
+                                FCF boxes per sheet, ground truth (type, value, datums, diametral, pixel bbox)
+  grammar.py                   the ASME Y14.5-shaped grammar gate: parses "CODE|value|DATUMS", rejecting
+                                anything that does not fit the layout or violates a cross-field rule
+  evaluate.py                   field-level exact match: every field must match, normalized identically
+                                 across all three extraction methods before comparison
+  ocr_regex_baseline.py          EasyOCR + regex baseline; the regex logic is split out so it is unit-testable
+                                  without loading an OCR model
+  donut_infer.py                  loads a Donut checkpoint (fine-tuned or stock) and reads one FCF crop,
+                                   optionally returning a confidence score from the generated sequence's own
+                                   per-token softmax
+  review_db.py                     SQLite: one row per FCF, status queued/auto_accepted/human_corrected; a
+                                    correction both resolves the row and appends a new row to correction_label
+  review_app.py                     FastAPI console: GET /queue, POST /queue/{id}/correct, GET
+                                     /sheets/{id}/releasable
 scripts/
-  run_demo.py            end-to-end: issue -> seed a defect and a legitimate change -> refused -> fix the
-                          defect -> still refused (transmittal/index mismatch) -> fix that -> allowed
-  run_benchmarks.py       reproduces the measured numbers in this README
+  generate_fcf_dataset.py            builds the image + YOLO-label + FCF-crop dataset
+  finetune_donut.py                    fine-tunes donut-base on the training crops
+  run_fcf_benchmarks.py                 detector -> extractor -> grammar gate end to end on the test split,
+                                         for all three methods, fed the same YOLO-detected crops; calibrates
+                                         and applies the abstention band
 tests/
-  test_pdf_roundtrip.py         title block round trip, content-hash independence from revision, the
-                                  crop-boundary finding pinned as a regression test
-  test_revision_check.py        45/45 seeded release defects caught; 0 false holds across 40 clean sets
-  test_transmittal_check.py     both directions of transmittal/index disagreement
-  test_scale.py                  a 620-sheet synthetic set compared sheet by sheet
-  test_db.py                      SQLite persistence round trip
+  test_pdf_roundtrip.py, test_revision_check.py, test_transmittal_check.py, test_scale.py, test_db.py   (original)
+  test_fcf_image.py, test_grammar.py, test_ocr_regex_baseline.py, test_review_db.py, test_review_app.py, test_evaluate.py
 docs/
-  test_output.txt, benchmark_output.txt, demo_output.txt
+  test_output.txt, benchmark_output.txt, demo_output.txt (original)
+  fcf_test_output.txt, fcf_benchmark_output.json (extension)
 ```
 
-### Why the content hash is computed from line endpoints, not a page image hash
+### Why the detector feeds the same crop to every extraction method
 
-Hashing a rendered image of the drawing area would work too, but it would
-depend on rasterization settings (DPI, anti-aliasing) that have nothing to
-do with whether the drawing actually changed. Hashing the vector line
-endpoints read back by `pdfplumber`, rounded to 0.1pt to absorb PDF
-floating-point round-trip noise, ties the hash to the actual geometry a
-CAD or PDF viewer would show, and is stable across two renders of the
-identical content (`test_same_content_seed_renders_identical_content_hash`).
+The three extraction methods (fine-tuned Donut, zero-shot Donut, OCR+regex)
+are each run on the YOLO detector's own output box for a given FCF, not on
+the ground-truth box. A method evaluated on ground-truth crops would look
+better than it will in production, where the detector's own localization
+error is part of the pipeline; matching detections to ground truth by IoU
+and then cropping from the detection keeps the comparison honest about
+where the errors actually come from.
 
-### Why sheets new to the current set are not flagged
+### Why the heuristic diameter-modifier detector in the OCR baseline excludes a leading "0"
 
-`check_revision_entries` only compares sheet numbers present in both the
-previous issued set and the current one. A sheet that is brand new has no
-prior revision to compare against, so "changed without a revision entry"
-does not apply to it; it would need its own check (does a new sheet carry
-a valid initial revision stamp), which is out of scope here and named in
-Limitations rather than silently mishandled.
+Every tolerance value in this dataset is under 1.0, so every value's own
+text starts with "0." identically to how a misread diameter symbol would.
+Treating a leading "0" as a diameter-modifier signal would false-positive
+on every single value; only a stray capital "O" or the real "⌀" glyph is
+unambiguous, so the regex restricts the modifier check to those two
+characters. A real but disclosed baseline limitation, not a bug pinned
+after the fact: see `ocr_regex_baseline.py`'s own comment.
 
 ## Validation
 
@@ -100,83 +123,49 @@ Limitations rather than silently mishandled.
 $ pytest tests -v
 ```
 
-17 passed. Full output in `docs/test_output.txt`. Three layers specific to
-the two release-blocking claims:
-
-1. **Exact seeded-set match, not just a count.** `test_45_of_45_seeded_release_defects_caught`
-   asserts the detected defect set equals the seeded set exactly
-   (`detect == seeded`), so a detector that flagged the wrong 45 sheets out
-   of 100 would fail even though the count matched.
-2. **Both directions of transmittal disagreement.** A sheet on the
-   transmittal but missing from the index, and a sheet in the index but
-   missing from the transmittal, are tested and reported separately
-   (`test_transmittal_check.py`).
-3. **A real regression test for a real tool behavior**, not just a design
-   comment: `test_a_line_crossing_the_title_block_boundary_is_not_clipped`
-   pins the exact `pdfplumber` behavior that shaped the generator's 10pt
-   margin, so a future `pdfplumber` version that changes this behavior
-   would be caught here first.
+Full output: `docs/test_output.txt` (original) and `docs/fcf_test_output.txt`
+(extension). Layers: the original project's PDF round-trip and release-check
+suite, unchanged; the grammar gate tested against every malformed case its
+two cross-field rules exist to catch (flatness with a datum, a non-diametral
+type carrying the diameter modifier, duplicate or out-of-range datum
+letters); the review queue's accept/queue partition invariant and its
+correction-unblocks-release path, exercised through the real FastAPI app
+via `TestClient`, not by calling the database layer directly; the
+OCR-regex baseline's field extraction tested on synthetic noisy text
+without loading an OCR model.
 
 ## Findings
 
-**`pdfplumber.crop()` selects overlapping objects, it does not clip their
-geometry.** While validating that the title-block region and the drawing
-region were truly independent, a test drew a single line crossing the
-boundary between them and checked which crop it landed in. The
-discriminating measurement: the returned line's coordinates were identical
-to the original, un-clipped call, including the portion that fell outside
-the crop's own bounding box, for the crop it "belonged" to by overlap. A
-naive implementation would have assumed `crop()` behaves like an image
-crop (truncating geometry at the boundary), and would have been safe from
-this specific bug only by accident, if no generated line ever happened to
-cross the boundary. The fix here was not a code change to `sheet_pdf.py`;
-it was making the constraint explicit (`TITLE_BLOCK_HEIGHT + 10` in the
-line-generation bounds) and pinning the actual observed behavior as a
-regression test, so the constraint has a reason attached to it instead of
-being an unexplained magic number.
+*(filled in after `scripts/run_fcf_benchmarks.py`; see Measured results)*
 
 ## Measured results
 
-Machine: 8 physical / 16 logical cores, Windows 11 Home, Python 3.12.10.
-
-| Claim | Measured | Meets claim |
-|---|---|---|
-| 45 of 45 seeded release defects caught | **45 / 45**, exact set match | yes |
-| 0 false holds across 40 clean sets | **0** | yes |
-| Over a 600-sheet synthetic set | **620** sheets, each rendered and parsed twice, compared sheet by sheet | yes |
-
-Raw output: `docs/benchmark_output.txt` (reproduce with
-`python scripts/run_benchmarks.py`), `docs/test_output.txt` (`pytest -v`).
-
-The one number that matters is the first row: out of 100 sheets, 45 have
-their real drawing content changed with no revision entry, 25 have a
-legitimate, properly revisioned change, and 30 are untouched; the checker
-names exactly the 45 that are wrong, not a sheet more or fewer.
+*(filled in after `scripts/run_fcf_benchmarks.py` completes a full run)*
 
 ## Building and running
 
 ```
-python -m venv venv
-venv\Scripts\activate            # Windows
-pip install -r requirements.txt
-
+# original project
 pytest tests -v
-python scripts/run_benchmarks.py
-python scripts/run_demo.py
+
+# FCF extension (WSL2, CUDA 12.4)
+python scripts/generate_fcf_dataset.py --n-train 2100 --n-val 450 --n-test 450
+yolo detect train data=data/yolo_dataset.yaml model=yolov8n.pt epochs=30 imgsz=896 batch=16 device=0 \
+    project=runs name=fcf_detect workers=4
+python scripts/finetune_donut.py --epochs 4 --batch-size 8
+python scripts/run_fcf_benchmarks.py
 ```
 
 ## Limitations
 
-- The revision-entry check only covers sheets present in both the previous
-  issue and the current set; a brand-new sheet's own initial revision
-  stamp is not separately validated.
-- The drawing "content" is synthetic vector line segments, not real
-  construction geometry; the content hash proves change detection works,
-  it does not model what makes a real drawing correct.
-- Revision-entry defects and transmittal/index disagreements are both
-  named in the same `ReleaseCheckResult`, but there is no severity
-  ordering between them; a real release process would likely block on one
-  before even checking the other.
-- The escalation from "defect found" to a blocked release is a boolean;
-  there is no waiver or override path for a change a document controller
-  has already accepted as-is.
+- The FCF dataset, the detector and both models are trained and evaluated
+  entirely on this repository's own synthetic generator; none of these
+  numbers say anything about real engineering drawings.
+- The grammar gate's two cross-field rules are real ASME Y14.5 structure
+  but a small subset of it; a real feature control frame vocabulary is
+  far larger (material condition modifiers, composite frames, projected
+  tolerance zones), none of which this dataset generates or this gate
+  checks.
+- The zero-shot Donut baseline is prompted with its own pretraining task
+  token (`<s_synthdog>`), not a task-specific instruction; a differently
+  prompted zero-shot baseline could score differently.

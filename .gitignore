@@ -1,8 +1,11 @@
-__pycache__/
-*.py[cod]
-*.egg-info/
-.pytest_cache/
 venv/
-.venv/
-env/
+__pycache__/
+*.pyc
+.pytest_cache/
 *.log
+data/images/
+data/fcf_crops/
+data/labels/
+data/*.json
+models/
+runs/

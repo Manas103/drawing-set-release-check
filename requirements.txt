@@ -2,3 +2,9 @@ reportlab==5.0.1
 pdfplumber==0.11.10
 pypdf==6.16.2
 pytest==8.3.4
+fastapi==0.165.0
+httpx==0.28.1
+# change_note_drafter needs no pip package: it calls the `claude` CLI already
+# on this machine as a subprocess (see change_note_drafter/llm_client.py).
+# fcf_extraction's Donut/YOLOv8n/EasyOCR path needs its own WSL2 CUDA venv
+# (torch, transformers, ultralytics, easyocr); see README "Machine and toolchain".

@@ -1,0 +1,112 @@
+{
+  "summary": {
+    "total_drafts": 300,
+    "accepted": 266,
+    "rejected": 34,
+    "rejection_reason_counts": {
+      "ungrounded": 34
+    },
+    "seconds": 372.1,
+    "batches": 15,
+    "batch_size": 20,
+    "model": "haiku"
+  },
+  "rejected_ids": [
+    81,
+    82,
+    84,
+    86,
+    87,
+    89,
+    91,
+    92,
+    95,
+    97,
+    98,
+    99,
+    125,
+    126,
+    129,
+    131,
+    132,
+    133,
+    134,
+    135,
+    136,
+    137,
+    138,
+    139,
+    207,
+    216,
+    284,
+    290,
+    292,
+    293,
+    295,
+    297,
+    298,
+    299
+  ],
+  "rejected_examples": [
+    {
+      "id": 81,
+      "reason": "ungrounded:wrong_value:revision:1",
+      "change_note": "Sheet P-181 (Foundation Plan) advances to Revision 2 in this release. [cite:sheet_number] [cite:title] [cite:revision] Its content hash changed from the prior issue to the current issue, so the sheet body differs and the revision entry must describe that change. [cite:previous_content_hash] [cite:current_content_hash]",
+      "procedure_text": "Open P-181 and confirm the revision block lists Revision 2 with a description that matches the content change. [cite:sheet_number] [cite:revision] Compare the hash pair recorded in the release log against the Revision 1 and Revision 2 files before sign-off. [cite:previous_content_hash] [cite:current_content_hash]"
+    },
+    {
+      "id": 82,
+      "reason": "ungrounded:wrong_value:revision:4",
+      "change_note": "Sheet S-182 (Stair Section) is at Revision 5, so it has been revised several times since its first issue. [cite:sheet_number] [cite:title] [cite:revision] The content hash changed from the prior issue to the current issue, which confirms the sheet body was modified in this cycle. [cite:previous_content_hash] [cite:current_content_hash]",
+      "procedure_text": "Check that the revision block of S-182 lists Revision 5 and that each earlier revision is still recorded. [cite:sheet_number] [cite:revision] Verify that the Stair Section title and the release log hash pair match the Revision 4 and Revision 5 files before transmittal. [cite:title] [cite:previous_content_hash] [cite:current_content_hash]"
+    },
+    {
+      "id": 84,
+      "reason": "ungrounded:wrong_value:revision:1",
+      "change_note": "Sheet P-184 (Site Grading Plan) advances to Revision 2 in this release. [cite:sheet_number] [cite:title] [cite:revision] Its content hash differs between the prior and current issues, so the grading content has changed and the revision entry must reflect it. [cite:previous_content_hash] [cite:current_content_hash]",
+      "procedure_text": "Verify that P-184 lists Revision 2 in the revision block with a description of the grading change. [cite:sheet_number] [cite:revision] Reconcile the stored hash pair with the Revision 1 and Revision 2 files before sign-off. [cite:previous_content_hash] [cite:current_content_hash]"
+    },
+    {
+      "id": 86,
+      "reason": "ungrounded:wrong_value:revision:2",
+      "change_note": "Sheet E-186 (Floor Plan Level 2) is issued at Revision 3 in this release. [cite:sheet_number] [cite:title] [cite:revision] The content hash moved from the previous issue to the current issue, which means the plan content changed since the last release. [cite:previous_content_hash] [cite:current_content_hash]",
+      "procedure_text": "Confirm that E-186 lists Revision 3 in its revision block with an accurate description of the change. [cite:sheet_number] [cite:revision] Verify the hash pair in the release log against the Revision 2 and Revision 3 files before release. [cite:previous_content_hash] [cite:current_content_hash]"
+    },
+    {
+      "id": 87,
+      "reason": "ungrounded:wrong_value:revision:5",
+      "change_note": "Sheet P-187 (HVAC Duct Layout) is at Revision 6 in this release set. [cite:sheet_number] [cite:title] [cite:revision] The content hash changed between the prior and current issues, so the duct layout was modified and the revision entry must describe the change. [cite:previous_content_hash] [cite:current_content_hash]",
+      "procedure_text": "Check that P-187 lists Revision 6 and that the HVAC Duct Layout title matches the sheet index. [cite:sheet_number] [cite:title] [cite:revision] Compare the logged hash pair with the Revision 5 and Revision 6 files before sign-off. [cite:previous_content_hash] [cite:current_content_hash]"
+    },
+    {
+      "id": 89,
+      "reason": "ungrounded:wrong_value:revision:5",
+      "change_note": "Sheet P-189 (Stair Section) is issued at Revision 6 in this release set. [cite:sheet_number] [cite:title] [cite:revision] The content hash changed from the previous issue, which confirms the section was modified and must be described in the revision entry. [cite:previous_content_hash] [cite:current_content_hash]",
+      "procedure_text": "Confirm that P-189 lists Revision 6 and that its Stair Section title matches the sheet index. [cite:sheet_number] [cite:title] [cite:revision] Check the hash pair in the release log against the Revision 5 and Revision 6 files before release. [cite:previous_content_hash] [cite:current_content_hash]"
+    },
+    {
+      "id": 91,
+      "reason": "ungrounded:wrong_value:revision:0",
+      "change_note": "Sheet S-191 (Drainage Plan) is issued at Revision 1 in this release set. [cite:sheet_number] [cite:title] [cite:revision] The content hash differs between the prior and current issues, so the drainage content was changed and the revision entry must describe it. [cite:previous_content_hash] [cite:current_content_hash]",
+      "procedure_text": "Confirm that S-191 shows Revision 1 in its revision block with a description of the drainage change. [cite:sheet_number] [cite:revision] Compare the stored hash pair against the Revision 0 and Revision 1 files before transmittal. [cite:previous_content_hash] [cite:current_content_hash]"
+    },
+    {
+      "id": 92,
+      "reason": "ungrounded:wrong_value:revision:3",
+      "change_note": "Sheet E-192 (HVAC Duct Layout) advances to Revision 4 in this release. [cite:sheet_number] [cite:title] [cite:revision] Its content hash changed from the prior issue, so the duct layout was modified and must be recorded in the revision entry. [cite:previous_content_hash] [cite:current_content_hash]",
+      "procedure_text": "Verify that E-192 lists Revision 4 with an accurate description of the layout change. [cite:sheet_number] [cite:revision] Reconcile the hash pair in the release log with the Revision 3 and Revision 4 files before sign-off. [cite:previous_content_hash] [cite:current_content_hash]"
+    },
+    {
+      "id": 95,
+      "reason": "ungrounded:wrong_value:revision:2",
+      "change_note": "Sheet C-195 (Panel Schedule) advances to Revision 3 in this release set. [cite:sheet_number] [cite:title] [cite:revision] Its content hash differs from the prior issue, so the schedule content was changed and the revision entry must record the change. [cite:previous_content_hash] [cite:current_content_hash]",
+      "procedure_text": "Verify that C-195 shows Revision 3 in the revision block with a description of the schedule change. [cite:sheet_number] [cite:revision] Reconcile the stored hash pair with the Revision 2 and Revision 3 files before sign-off. [cite:previous_content_hash] [cite:current_content_hash]"
+    },
+    {
+      "id": 97,
+      "reason": "ungrounded:wrong_value:revision:1",
+      "change_note": "Sheet A-197 (Panel Schedule) is issued at Revision 2 in this release set. [cite:sheet_number] [cite:title] [cite:revision] The content hash moved from the previous issue to the current issue, so the schedule content changed and the revision entry must describe it. [cite:previous_content_hash] [cite:current_content_hash]",
+      "procedure_text": "Confirm that A-197 shows Revision 2 and that its Panel Schedule title matches the sheet index. [cite:sheet_number] [cite:title] [cite:revision] Check the hash pair in the release log against the Revision 1 and Revision 2 files before transmittal. [cite:previous_content_hash] [cite:current_content_hash]"
+    }
+  ]
+}

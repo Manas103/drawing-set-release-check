@@ -9,9 +9,14 @@ with its own sheet index. Extended (Nov. 2026) with a detector-plus-
 document-model pipeline that reads feature control frames (FCFs) off a
 sheet image into structured tolerance records, gated by an ASME
 Y14.5-shaped grammar and a calibrated review band, feeding the same
-decision ledger the release check already enforces. Every number below
-was measured on this machine by running the code in this repository, not
-targeted in advance.
+decision ledger the release check already enforces. Extended again
+(Nov. 2026) with an AI change-note drafter: a language model drafts the
+change note and procedure text for a revision-entry finding, every
+sentence required to cite one of the finding's own fields, and a
+citation-grounding verifier rejects any draft that states a fact (a
+sheet number, a revision number, or a content hash) no field actually
+supports. Every number below was measured on this machine by running the
+code in this repository, not targeted in advance.
 
 ## Why this exists
 
@@ -57,11 +62,32 @@ should have caught it didn't.
 - **Trained GPU-side in WSL2** (RTX 4070 SUPER, CUDA 12.4) for the YOLO
   detector and the Donut fine-tune; the repo of record is this Windows
   folder, per the pipeline's own convention.
+- **The change-note drafter's LLM calls are real, not templated.** Every
+  change note and procedure text in the 300-draft benchmark was written
+  by the `claude` CLI (`--model haiku`) running on this machine, batched
+  20 findings per call so a 300-item benchmark costs 15 calls, not 300;
+  the model drafts every individual finding's text itself inside that
+  batch, nothing is filled in from a template afterward.
+- **The 300 findings are synthetic, not drawn from the release gate's own
+  PDFs.** `change_note_drafter/findings.py` builds 300 `RevisionDefect`
+  instances directly, the exact dataclass the real gate's
+  `check_revision_entries` produces, with varied sheet numbers, titles,
+  revisions and content hashes from a fixed seed; the drafter only ever
+  sees a finding's fields, the same information it would see from a real
+  gate run.
+- **The citation verifier checks for stated wrong facts, not for literal
+  restatement.** A sentence that cites a field without re-quoting its
+  value ("confirm this sheet number appears on the transmittal") is not
+  a violation; a sentence that states a sheet number, revision number,
+  or content hash that does not match this finding's own values is (see
+  Findings for why the first version of this checker got that distinction
+  backwards).
 - **Machine and toolchain.** 8 physical / 16 logical cores, Windows 11
-  Home (original project) + WSL2 Ubuntu 22.04 (extension), Python 3.12.10
-  (Windows) / 3.10.12 (WSL2), reportlab 5.0.1, pdfplumber 0.11.10, pypdf
-  6.16.2, SQLite (stdlib `sqlite3`), PyTorch 2.6.0+cu124, transformers
-  5.20.2, ultralytics 8.4.215, EasyOCR, FastAPI.
+  Home (original project and change-note drafter) + WSL2 Ubuntu 22.04
+  (FCF extension), Python 3.12.10 (Windows) / 3.10.12 (WSL2), reportlab
+  5.0.1, pdfplumber 0.11.10, pypdf 6.16.2, SQLite (stdlib `sqlite3`),
+  PyTorch 2.6.0+cu124, transformers 5.20.2, ultralytics 8.4.215, EasyOCR,
+  FastAPI, `claude` CLI (Claude Code) for the drafter.
 
 ## Architecture
 
@@ -83,18 +109,33 @@ fcf_extraction/
                                     correction both resolves the row and appends a new row to correction_label
   review_app.py                     FastAPI console: GET /queue, POST /queue/{id}/correct, GET
                                      /sheets/{id}/releasable
+change_note_drafter/           (Nov. 2026) the AI change-note drafter, independent of fcf_extraction
+  findings.py                    builds synthetic RevisionDefect findings (the real gate's own dataclass)
+                                  and each finding's whitelisted, citable field record
+  llm_client.py                   wraps the `claude` CLI headless call, batched N findings per call,
+                                   parses the model's JSON reply
+  verifier.py                      citation-grounding checker: uncited sentences, unknown field
+                                    citations, speculative phrasing, and stated values that don't
+                                    match any of the finding's own fields
 scripts/
   generate_fcf_dataset.py            builds the image + YOLO-label + FCF-crop dataset
   finetune_donut.py                    fine-tunes donut-base on the training crops
   run_fcf_benchmarks.py                 detector -> extractor -> grammar gate end to end on the test split,
                                          for all three methods, fed the same YOLO-detected crops; calibrates
                                          and applies the abstention band
+  run_change_note_benchmark.py          (Nov. 2026) drafts and verifies all 300 findings, reports the
+                                         accept/reject counts -> docs/change_note_benchmark_output.{txt,json}
 tests/
   test_pdf_roundtrip.py, test_revision_check.py, test_transmittal_check.py, test_scale.py, test_db.py   (original)
   test_fcf_image.py, test_grammar.py, test_ocr_regex_baseline.py, test_review_db.py, test_review_app.py, test_evaluate.py
+  test_change_note_drafter.py   (Nov. 2026) 11 tests: findings determinism, each of the verifier's 4
+                                 rejection rules individually, a legitimate-no-restatement acceptance
+                                 case, and llm_client's JSON parsing against a mocked subprocess call
 docs/
-  test_output.txt, benchmark_output.txt, demo_output.txt (original)
-  fcf_test_output.txt, fcf_benchmark_output.json (extension)
+  test_output.txt         all 70 tests, original + both extensions, in one run
+  benchmark_output.txt, demo_output.txt (original)
+  fcf_benchmark_output.json (FCF extension)
+  change_note_benchmark_output.txt / .json (Nov. 2026, change-note drafter)
 ```
 
 ### Why the detector feeds the same crop to every extraction method
@@ -117,14 +158,29 @@ unambiguous, so the regex restricts the modifier check to those two
 characters. A real but disclosed baseline limitation, not a bug pinned
 after the fact: see `ocr_regex_baseline.py`'s own comment.
 
+### Why the grounding check pattern-matches stated values instead of requiring literal restatement
+
+The first version of the verifier required every cited field's exact
+value to appear verbatim in the sentence that cited it. That rejected
+sentences like "confirm this sheet number appears on the transmittal at
+the stated revision", which cites `sheet_number` and `revision`
+correctly and asserts nothing false about either; it just doesn't
+re-quote them. The rule that actually matters is the opposite direction:
+a sentence is wrong if it *states a concrete value that is not one of
+this finding's own*, not if it declines to restate a value it already
+cited. `verifier.py` now pattern-matches sheet-number-shaped, revision-
+shaped and hash-shaped tokens anywhere in a sentence and checks each one
+against the finding's real values, which both accepts legitimate
+indirect phrasing and still catches a wrong number stated outright.
+
 ## Validation
 
 ```
 $ pytest tests -v
 ```
 
-Full output: `docs/test_output.txt` (original) and `docs/fcf_test_output.txt`
-(extension). Layers: the original project's PDF round-trip and release-check
+Full output: `docs/test_output.txt` (70 tests: the original project's suite
+plus both extensions', one run). Layers: the original project's PDF round-trip and release-check
 suite, unchanged; the grammar gate tested against every malformed case its
 two cross-field rules exist to catch (flatness with a datum, a non-diametral
 type carrying the diameter modifier, duplicate or out-of-range datum
@@ -132,15 +188,68 @@ letters); the review queue's accept/queue partition invariant and its
 correction-unblocks-release path, exercised through the real FastAPI app
 via `TestClient`, not by calling the database layer directly; the
 OCR-regex baseline's field extraction tested on synthetic noisy text
-without loading an OCR model.
+without loading an OCR model; the change-note drafter's verifier tested
+against each of its 4 rejection rules individually plus a legitimate
+no-restatement sentence that must be accepted, and `llm_client.draft_batch`'s
+JSON (including fenced-code-block) parsing tested against a mocked
+`subprocess.run`, never a real network call.
 
 ## Findings
 
-*(filled in after `scripts/run_fcf_benchmarks.py`; see Measured results)*
+*(FCF extraction findings: filled in after `scripts/run_fcf_benchmarks.py`; see Measured results)*
+
+**Change-note drafter: the first citation-grounding rule rejected
+correct sentences, not wrong ones.** Requiring a cited field's value to
+be literally re-quoted in the same sentence rejected sentences such as
+"confirm this sheet number appears on the transmittal at the stated
+revision" (the real example that surfaced it, drawn from the real
+300-item corpus), which is a correctly-grounded sentence that simply
+refers back to values it already named earlier in the same note. Against
+the first batch of 20 real drafts this measured 0/20 rejected (every
+sentence restated its values); against the full 300-item corpus with the
+literal-restatement rule it measured 153/300 rejected, almost entirely
+on this one false-positive pattern. The rule was replaced with the
+pattern-matching check described above (see the design note), and the
+re-measured rate on the identical 300 drafts dropped to 34/300, all of
+them genuine.
+
+**What the 34 real rejections actually are.** Inspecting the 34: every
+one is the model inferring the *previous* revision number (e.g.
+"Revision 4") from the finding's current revision and its
+`previous_content_hash`/`current_content_hash` pair, and writing a
+procedure sentence like "compare the hash pair against the Revision 4
+and Revision 5 files." The finding carries no previous revision number
+at all, only a current revision and a before/after hash; the model
+filled a real, specific-sounding gap with a plausible but unsupported
+number. This is the AI-pilot failure mode the project exists to catch:
+not nonsense, a quietly specific inference one field short of what the
+record actually supports.
+
+**A separate, looser prompting attempt showed a different and sharper
+failure mode: general domain claims with no field behind them at all**
+("piping isometrics are usually filed under mechanical or plumbing").
+That prompt variant was not used for the measured corpus (it asked the
+model to write more expansively, which is what invited the claim in the
+first place); its only lasting effect on this repository is
+`verifier.SPECULATIVE_PHRASES`, fixed before the final 300-item corpus
+was drafted.
 
 ## Measured results
 
-*(filled in after `scripts/run_fcf_benchmarks.py` completes a full run)*
+*(FCF extraction measured results: filled in after `scripts/run_fcf_benchmarks.py` completes a full run)*
+
+**Change-note drafter.** Machine: Windows 11 Home, native Python
+3.12.10, `claude` CLI, model `haiku`.
+
+| Claim | Measured | Command |
+|---|---|---|
+| Change note and procedure text drafted by a language model from the gate's own findings | 300/300 findings drafted by 15 real `claude` CLI calls (20 findings/call) | `scripts/run_change_note_benchmark.py` |
+| Every sentence required to cite a finding or a record field | enforced by `verifier.check_sentence`; the one `uncited`-reason rejection in the first (replaced) run confirms the rule actually fires | same command |
+| 37 of 300 drafts rejected for a statement no record supported | **34/300** rejected (all `ungrounded`, all a hallucinated previous-revision number; see Findings) | same command, `docs/change_note_benchmark_output.txt` |
+
+Raw output: `docs/change_note_benchmark_output.txt`,
+`docs/change_note_benchmark_output.json` (summary plus the first 10
+rejected drafts' full text).
 
 ## Building and running
 
@@ -154,6 +263,9 @@ yolo detect train data=data/yolo_dataset.yaml model=yolov8n.pt epochs=30 imgsz=8
     project=runs name=fcf_detect workers=4
 python scripts/finetune_donut.py --epochs 4 --batch-size 8
 python scripts/run_fcf_benchmarks.py
+
+# change-note drafter (native Windows, needs the `claude` CLI on PATH)
+venv\Scripts\python.exe scripts\run_change_note_benchmark.py
 ```
 
 ## Limitations
@@ -169,3 +281,21 @@ python scripts/run_fcf_benchmarks.py
 - The zero-shot Donut baseline is prompted with its own pretraining task
   token (`<s_synthdog>`), not a task-specific instruction; a differently
   prompted zero-shot baseline could score differently.
+- **The change-note drafter's findings are synthetic `RevisionDefect`
+  instances, not findings from a real release-gate run on real sheets**;
+  the drafter and verifier only ever see a finding's fields, so this is
+  true by construction, not a gap in coverage.
+- **The verifier's grounding checks are pattern-based and field-specific
+  (sheet number, revision number, content hash), not a general-purpose
+  fact-checker.** A hallucinated claim that doesn't take the shape of one
+  of those three patterns (an invented cause, a fabricated person, a
+  wrong title) would not be caught by the pattern checks; the
+  `title` field is deliberately not pattern-checked at all, because a
+  paraphrased title is not the same failure as a wrong number.
+- **One rejection pattern dominates the 34/300 measured rate**: every
+  rejected draft hallucinates the same kind of fact, a previous revision
+  number the finding does not carry. A differently-shaped finding (one
+  that did carry a previous revision number, for instance) might not
+  trigger this particular failure mode at all, or might trigger a
+  different one; 34/300 is this corpus's measured rate, not a general
+  rate for AI-drafted change notes.
